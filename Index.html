@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GSTR-2B to Tally Converter</title>
+  <!-- Load SheetJS from the local file -->
+  <script src="xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background-color: #f3f4f6;
+      color: #1f2937;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      background-color: white;
+      width: 400px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+    }
+    .header {
+      background-color: #2563eb;
+      color: white;
+      text-align: center;
+      padding: 16px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .container {
+      padding: 24px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      font-size: 14px;
+      margin-bottom: 24px;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+    }
+    button {
+      width: 100%;
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #1d4ed8;
+    }
+    .status {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 16px;
+      display: none;
+      font-weight: 500;
+    }
+    .status.success { color: #16a34a; display: block; }
+    .status.error { color: #dc2626; display: block; }
+    .footer {
+      text-align: center;
+      padding: 12px;
+      font-size: 13px;
+      color: #6b7280;
+      background-color: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="header">GSTR-2B to Tally</div>
+    
+    <div class="container">
+      <label>Upload GSTR-2B JSON</label>
+      <input type="file" id="jsonInput" accept=".json" />
+      
+      <button id="convertBtn">Generate Excel File</button>
+      <div id="status" class="status"></div>
+    </div>
+
+    <!-- Your Signature -->
+    <div class="footer">
+      Developed by <strong>Govind T</strong>
+    </div>
+  </div>
+
+  <!-- Load the processing logic -->
+  <script src="app.js"></script>
+</body>
+</html>
