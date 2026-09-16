@@ -29,9 +29,21 @@ function showStatus(message, type) {
     statusText.className = `status ${type}`;
 }
 
+function formatTallyDate(dateStr) {
+    if (!dateStr) return "";
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${parts[0]}-${months[parseInt(parts[1], 10) - 1]}-${parts[2]}`;
+    }
+    return dateStr;
+}
+
 function processData(jsonData) {
+    // Standard Tally Headers + Custom Audit Columns
     const headers = [
-        "Voucher Date", "Voucher Type Name", "Voucher Number",
+        "Voucher Date", "Voucher Type Name", "Voucher Number", "GSTIN/UIN", "Place of Supply",
+        "Supplier Invoice Date", "Narration", 
         "Buyer/Supplier - Address", "Buyer/Supplier - Pincode",
         "Ledger Name", "Ledger Amount", "Ledger Amount Dr/Cr",
         "Item Name", "Billed Quantity", "Item Rate", "Item Rate per",
@@ -47,17 +59,48 @@ function processData(jsonData) {
         const igst = taxObject.igst || 0;
         const cess = taxObject.cess || 0;
 
+        // 1. Dynamic Rate Calculation
+        let rate = taxObject.rt || 0;
+        if (!rate && txval > 0) {
+            rate = Math.round(((cgst + sgst + igst) / txval) * 100);
+        }
+        
+        const standardRates = [0, 5, 12, 18, 28];
+        rate = standardRates.reduce((prev, curr) => Math.abs(curr - rate) < Math.abs(prev - rate) ? curr : prev);
+
+        // 2. Map to Exact Ledger Names
+        let purLedger = `PURCHASE ${rate}%`;
+        let cgstLedger = `INPUT CGST ${rate/2}%`; 
+        let sgstLedger = `INPUT SGST ${rate/2}%`;
+        let igstLedger = `INPUT IGST ${rate}%`; 
+
+        if (rate === 18) {
+            purLedger = "PURCHASE 18%";
+            cgstLedger = "INPUT CSGT 9 %"; // Mapped exactly as requested
+            sgstLedger = "INPUT SGST 9 %";
+        } else if (rate === 28) {
+            purLedger = "PURCHASE 28 %";
+            cgstLedger = "INPUT CGST 14 %";
+            sgstLedger = "INPUT SGST 14 %";
+        } else if (rate === 5) {
+            purLedger = "PURCHASE 5%";
+            cgstLedger = "INPUT CGST 2.5 %";
+            sgstLedger = "INPUT SGST 2.5 %";
+        } else if (rate === 0) {
+            purLedger = "PURCHASE 0%";
+        }
+
         let sideTotal = 0;
-        if (txval > 0) { addRow("Purchase A/c", txval, drCr); sideTotal += txval; }
-        if (cgst > 0)  { addRow("CGST", cgst, drCr);          sideTotal += cgst; }
-        if (sgst > 0)  { addRow("SGST", sgst, drCr);          sideTotal += sgst; }
-        if (igst > 0)  { addRow("IGST", igst, drCr);          sideTotal += igst; }
-        if (cess > 0)  { addRow("Cess", cess, drCr);          sideTotal += cess; }
+        if (txval > 0) { addRow(purLedger, txval, drCr); sideTotal += txval; }
+        if (cgst > 0)  { addRow(cgstLedger, cgst, drCr);  sideTotal += cgst; }
+        if (sgst > 0)  { addRow(sgstLedger, sgst, drCr);  sideTotal += sgst; }
+        if (igst > 0)  { addRow(igstLedger, igst, drCr);  sideTotal += igst; }
+        if (cess > 0)  { addRow("Cess", cess, drCr);      sideTotal += cess; }
+        
         return sideTotal;
     }
 
     function addRoundOff(addRow, val, sideTotal, drCrOnTaxSide) {
-        // Safety check: if val is 0, don't attempt to round off the entire invoice
         if (val === 0) return; 
         
         const diff = Math.round((Math.abs(val) - sideTotal) * 100) / 100;
@@ -67,28 +110,37 @@ function processData(jsonData) {
         }
     }
 
-    // 2. Extract and Process B2B data
+    // --- B2B INVOICES ---
     const b2bData = jsonData?.data?.docdata?.b2b;
     if (b2bData && Array.isArray(b2bData)) {
         b2bData.forEach(supplier => {
             const ctin = supplier.ctin || "";
             const trdnm = supplier.trdnm || ctin;
+            const filingDate = supplier.supfildt || "";
+            const period = supplier.supprd || "";
 
             if (supplier.inv && Array.isArray(supplier.inv)) {
                 supplier.inv.forEach(inv => {
                     const inum = inv.inum || "";
-                    const idt = inv.dt || inv.idt || "";
+                    const idt = formatTallyDate(inv.dt || inv.idt || "");
                     const val = inv.val || 0;
+                    const pos = inv.pos || "";
+                    
+                    const rcm = inv.rev === "Y" ? "Yes" : "No";
+                    const itc = inv.itcavl === "Y" ? "Eligible" : "Ineligible";
+                    const autoNarration = `GSTR-2B Import | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
 
-                    const addRow = (ledgerName, amount, drCr) => {
+                    // Add Row function with new preamble columns
+                    const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "") => {
                         excelData.push([
-                            idt, "Purchase", inum, "", "",
+                            idt, "Purchase", inum, gstin, posVal, supInvDate, narr,
+                            "", "",
                             ledgerName, amount, drCr,
                             "", "", "", "", "", "Accounting Invoice"
                         ]);
                     };
 
-                    addRow(trdnm, val, "Cr");
+                    addRow(trdnm, val, "Cr", ctin, pos, idt, autoNarration);
 
                     let sideTotal = 0;
                     if (inv.itms && Array.isArray(inv.itms)) {
@@ -99,7 +151,6 @@ function processData(jsonData) {
                         sideTotal = extractAndAddTaxes(inv, addRow, "Dr");
                     }
 
-                    // Fix JavaScript float precision before rounding
                     sideTotal = Math.round(sideTotal * 100) / 100;
                     addRoundOff(addRow, val, sideTotal, "Dr");
                 });
@@ -107,18 +158,25 @@ function processData(jsonData) {
         });
     }
 
-    // 3. Extract and Process CDNR data
+    // --- CDNR (CREDIT/DEBIT NOTES) ---
     const cdnrData = jsonData?.data?.docdata?.cdnr;
     if (cdnrData && Array.isArray(cdnrData)) {
         cdnrData.forEach(supplier => {
             const ctin = supplier.ctin || "";
             const trdnm = supplier.trdnm || ctin;
+            const filingDate = supplier.supfildt || "";
+            const period = supplier.supprd || "";
 
             if (supplier.nt && Array.isArray(supplier.nt)) {
                 supplier.nt.forEach(note => {
                     const ntnum = note.ntnum || "";
-                    const idt = note.dt || note.idt || "";
+                    const idt = formatTallyDate(note.dt || note.idt || "");
                     const val = note.val || 0;
+                    const pos = note.pos || "";
+
+                    const rcm = note.rev === "Y" ? "Yes" : "No";
+                    const itc = note.itcavl === "Y" ? "Eligible" : "Ineligible";
+                    const autoNarration = `GSTR-2B Note | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
 
                     const typ = note.typ || "";
                     const isCreditNote = typ === "C";
@@ -126,15 +184,16 @@ function processData(jsonData) {
                     const supplierDrCr = isCreditNote ? "Dr" : "Cr";
                     const taxDrCr = isCreditNote ? "Cr" : "Dr";
 
-                    const addRow = (ledgerName, amount, drCr) => {
+                    const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "") => {
                         excelData.push([
-                            idt, voucherType, ntnum, "", "",
+                            idt, voucherType, ntnum, gstin, posVal, supInvDate, narr,
+                            "", "",
                             ledgerName, amount, drCr,
                             "", "", "", "", "", "Accounting Invoice"
                         ]);
                     };
 
-                    addRow(trdnm, val, supplierDrCr);
+                    addRow(trdnm, val, supplierDrCr, ctin, pos, idt, autoNarration);
 
                     let sideTotal = 0;
                     if (note.itms && Array.isArray(note.itms)) {
@@ -145,7 +204,6 @@ function processData(jsonData) {
                         sideTotal = extractAndAddTaxes(note, addRow, taxDrCr);
                     }
 
-                    // Fix JavaScript float precision before rounding
                     sideTotal = Math.round(sideTotal * 100) / 100;
                     addRoundOff(addRow, val, sideTotal, taxDrCr);
                 });
@@ -161,5 +219,5 @@ function processData(jsonData) {
     const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Accounting Voucher");
-    XLSX.writeFile(workbook, "Purchase_With_Notes.xlsx");
+    XLSX.writeFile(workbook, "Tally_Import_Ready.xlsx");
 }
