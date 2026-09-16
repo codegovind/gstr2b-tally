@@ -14,6 +14,10 @@ document.getElementById('convertBtn').addEventListener('click', () => {
             const data = JSON.parse(e.target.result);
             processData(data);
             showStatus("Excel generated successfully!", "success");
+            
+            // NEW: Clear the file input field after successful download
+            fileInput.value = ''; 
+            
         } catch (error) {
             console.error(error);
             showStatus("Invalid JSON format or missing data.", "error");
@@ -40,7 +44,6 @@ function formatTallyDate(dateStr) {
 }
 
 function processData(jsonData) {
-    // Standard Tally Headers + Custom Audit Columns
     const headers = [
         "Voucher Date", "Voucher Type Name", "Voucher Number", "GSTIN/UIN", "Place of Supply",
         "Supplier Invoice Date", "Narration", 
@@ -59,16 +62,17 @@ function processData(jsonData) {
         const igst = taxObject.igst || 0;
         const cess = taxObject.cess || 0;
 
-        // 1. Dynamic Rate Calculation
+        // 1. DYNAMIC RATE CALCULATION
         let rate = taxObject.rt || 0;
         if (!rate && txval > 0) {
             rate = Math.round(((cgst + sgst + igst) / txval) * 100);
         }
         
+        // Snap to nearest standard GST rate bracket to prevent rounding errors
         const standardRates = [0, 5, 12, 18, 28];
         rate = standardRates.reduce((prev, curr) => Math.abs(curr - rate) < Math.abs(prev - rate) ? curr : prev);
 
-        // 2. Map to Exact Ledger Names
+        // 2. MAP TO YOUR SPECIFIC LEDGERS
         let purLedger = `PURCHASE ${rate}%`;
         let cgstLedger = `INPUT CGST ${rate/2}%`; 
         let sgstLedger = `INPUT SGST ${rate/2}%`;
@@ -76,7 +80,7 @@ function processData(jsonData) {
 
         if (rate === 18) {
             purLedger = "PURCHASE 18%";
-            cgstLedger = "INPUT CSGT 9 %"; // Mapped exactly as requested
+            cgstLedger = "INPUT CSGT 9 %"; 
             sgstLedger = "INPUT SGST 9 %";
         } else if (rate === 28) {
             purLedger = "PURCHASE 28 %";
@@ -110,7 +114,6 @@ function processData(jsonData) {
         }
     }
 
-    // --- B2B INVOICES ---
     const b2bData = jsonData?.data?.docdata?.b2b;
     if (b2bData && Array.isArray(b2bData)) {
         b2bData.forEach(supplier => {
@@ -130,10 +133,10 @@ function processData(jsonData) {
                     const itc = inv.itcavl === "Y" ? "Eligible" : "Ineligible";
                     const autoNarration = `GSTR-2B Import | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
 
-                    // Add Row function with new preamble columns
                     const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "") => {
                         excelData.push([
-                            idt, "Purchase", inum, gstin, posVal, supInvDate, narr,
+                            idt, "Purchase", inum, gstin, posVal, 
+                            supInvDate, narr, 
                             "", "",
                             ledgerName, amount, drCr,
                             "", "", "", "", "", "Accounting Invoice"
@@ -158,7 +161,6 @@ function processData(jsonData) {
         });
     }
 
-    // --- CDNR (CREDIT/DEBIT NOTES) ---
     const cdnrData = jsonData?.data?.docdata?.cdnr;
     if (cdnrData && Array.isArray(cdnrData)) {
         cdnrData.forEach(supplier => {
@@ -174,19 +176,20 @@ function processData(jsonData) {
                     const val = note.val || 0;
                     const pos = note.pos || "";
 
-                    const rcm = note.rev === "Y" ? "Yes" : "No";
-                    const itc = note.itcavl === "Y" ? "Eligible" : "Ineligible";
-                    const autoNarration = `GSTR-2B Note | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
-
                     const typ = note.typ || "";
                     const isCreditNote = typ === "C";
                     const voucherType = isCreditNote ? "Debit Note" : "Credit Note";
                     const supplierDrCr = isCreditNote ? "Dr" : "Cr";
                     const taxDrCr = isCreditNote ? "Cr" : "Dr";
 
+                    const rcm = note.rev === "Y" ? "Yes" : "No";
+                    const itc = note.itcavl === "Y" ? "Eligible" : "Ineligible";
+                    const autoNarration = `GSTR-2B Note | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
+
                     const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "") => {
                         excelData.push([
-                            idt, voucherType, ntnum, gstin, posVal, supInvDate, narr,
+                            idt, voucherType, ntnum, gstin, posVal, 
+                            supInvDate, narr,
                             "", "",
                             ledgerName, amount, drCr,
                             "", "", "", "", "", "Accounting Invoice"
@@ -219,5 +222,5 @@ function processData(jsonData) {
     const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Accounting Voucher");
-    XLSX.writeFile(workbook, "Tally_Import_Ready.xlsx");
+    XLSX.writeFile(workbook, "Purchase_With_Notes.xlsx");
 }
