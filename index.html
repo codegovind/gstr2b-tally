@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>GSTR-2B to Tally Converter</title>
-  <!-- Load SheetJS from the local file -->
   <script src="xlsx.full.min.js"></script>
   <style>
     body {
@@ -73,6 +72,21 @@
     }
     .status.success { color: #16a34a; display: block; }
     .status.error { color: #dc2626; display: block; }
+    
+    /* Guide Link */
+    .guide-link {
+      display: block;
+      text-align: center;
+      font-size: 13px;
+      color: #2563eb;
+      margin-top: 20px;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .guide-link:hover {
+      color: #1d4ed8;
+    }
+
     .footer {
       text-align: center;
       padding: 12px;
@@ -81,12 +95,53 @@
       background-color: #f9fafb;
       border-top: 1px solid #e5e7eb;
     }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 50;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    .modal-content img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      color: #374151;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close-btn:hover {
+      color: #dc2626;
+    }
   </style>
 </head>
 <body>
 
   <div class="card">
-    <div class="header">GSTR-2B to Tally</div>
+    <div class="header">GSTR-2B to Tally Automated</div>
     
     <div class="container">
       <label>Upload GSTR-2B JSON</label>
@@ -94,15 +149,47 @@
       
       <button id="convertBtn">Generate Excel File</button>
       <div id="status" class="status"></div>
+
+      <!-- Link to trigger the guide modal -->
+      <a class="guide-link" onclick="openModal()">How to setup Tally mapping?</a>
     </div>
 
-    <!-- Your Signature -->
     <div class="footer">
-      Developed by <strong>Govind T</strong>
+      Developed by <strong>Govind</strong>
     </div>
   </div>
 
-  <!-- Load the processing logic -->
+  <!-- The Mapping Guide Modal -->
+  <div id="guideModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeModal()">&times;</span>
+      <h3 style="margin-top: 0; color: #1f2937;">Tally Mapping Template Setup</h3>
+      <p style="font-size: 14px; color: #4b5563; margin-bottom: 15px;">
+        When importing into Tally, click <strong>Create</strong> under Mapping Template and match the fields exactly as shown below:
+      </p>
+      <!-- Updated image reference -->
+      <img src="import_template.jpg" alt="Tally Mapping Setup Guide" />
+    </div>
+  </div>
+
+  <script>
+    // Modal open/close logic
+    function openModal() {
+      document.getElementById('guideModal').style.display = 'flex';
+    }
+    function closeModal() {
+      document.getElementById('guideModal').style.display = 'none';
+    }
+    // Close modal if user clicks outside the image
+    window.onclick = function(event) {
+      const modal = document.getElementById('guideModal');
+      if (event.target === modal) {
+        modal.style.display = 'none';
+      }
+    }
+  </script>
+
+  <!-- Load your existing processing logic -->
   <script src="app.js"></script>
 </body>
 </html>
