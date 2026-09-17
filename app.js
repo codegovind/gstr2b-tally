@@ -44,7 +44,6 @@ function formatTallyDate(dateStr) {
 }
 
 function processData(jsonData) {
-    // NEW: Dictionary to convert POS numbers into Tally State Names
     const gstStates = {
         "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
         "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan",
@@ -58,9 +57,10 @@ function processData(jsonData) {
         "36": "Telangana", "37": "Andhra Pradesh", "38": "Ladakh"
     };
 
+    // ADDED: "Party Registration Type" to headers
     const headers = [
         "Voucher Date", "Voucher Type Name", "Voucher Number", "GSTIN/UIN", "Place of Supply",
-        "Supplier Invoice Date", "Narration", 
+        "Supplier Invoice Date", "Narration", "Party Registration Type",
         "Buyer/Supplier - Address", "Buyer/Supplier - Pincode",
         "Ledger Name", "Ledger Amount", "Ledger Amount Dr/Cr",
         "Item Name", "Billed Quantity", "Item Rate", "Item Rate per",
@@ -139,25 +139,31 @@ function processData(jsonData) {
                     const idt = formatTallyDate(inv.dt || inv.idt || "");
                     const val = inv.val || 0;
                     
-                    // UPDATED: Swap "27" for "Maharashtra"
                     const rawPos = inv.pos || "";
                     const posName = gstStates[rawPos] || rawPos;
                     
+                    // EXTRACT: Invoice Type (Defaults to "Regular" if "R")
+                    const rawType = inv.typ || "R";
+                    let partyRegType = "Regular";
+                    if (rawType.includes("SEZ")) partyRegType = "SEZ";
+
                     const rcm = inv.rev === "Y" ? "Yes" : "No";
                     const itc = inv.itcavl === "Y" ? "Eligible" : "Ineligible";
                     const autoNarration = `GSTR-2B Import | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
 
-                    const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "") => {
+                    // UPDATED: addRow accepts regType
+                    const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "", regType = "") => {
                         excelData.push([
                             idt, "Purchase", inum, gstin, posVal, 
-                            supInvDate, narr, 
+                            supInvDate, narr, regType, 
                             "", "",
                             ledgerName, amount, drCr,
                             "", "", "", "", "", "Accounting Invoice"
                         ]);
                     };
 
-                    addRow(trdnm, val, "Cr", ctin, posName, idt, autoNarration);
+                    // Pass partyRegType ONLY to the Party Ledger row
+                    addRow(trdnm, val, "Cr", ctin, posName, idt, autoNarration, partyRegType);
 
                     let sideTotal = 0;
                     if (inv.itms && Array.isArray(inv.itms)) {
@@ -189,7 +195,6 @@ function processData(jsonData) {
                     const idt = formatTallyDate(note.dt || note.idt || "");
                     const val = note.val || 0;
                     
-                    // UPDATED: Swap "27" for "Maharashtra"
                     const rawPos = note.pos || "";
                     const posName = gstStates[rawPos] || rawPos;
 
@@ -199,21 +204,24 @@ function processData(jsonData) {
                     const supplierDrCr = isCreditNote ? "Dr" : "Cr";
                     const taxDrCr = isCreditNote ? "Cr" : "Dr";
 
+                    // CDNR parties in 2B are inherently registered dealers
+                    const partyRegType = "Regular"; 
+
                     const rcm = note.rev === "Y" ? "Yes" : "No";
                     const itc = note.itcavl === "Y" ? "Eligible" : "Ineligible";
                     const autoNarration = `GSTR-2B Note | Filed: ${filingDate} | Period: ${period} | RCM: ${rcm} | ITC: ${itc}`;
 
-                    const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "") => {
+                    const addRow = (ledgerName, amount, drCr, gstin = "", posVal = "", supInvDate = "", narr = "", regType = "") => {
                         excelData.push([
                             idt, voucherType, ntnum, gstin, posVal, 
-                            supInvDate, narr,
+                            supInvDate, narr, regType,
                             "", "",
                             ledgerName, amount, drCr,
                             "", "", "", "", "", "Accounting Invoice"
                         ]);
                     };
 
-                    addRow(trdnm, val, supplierDrCr, ctin, posName, idt, autoNarration);
+                    addRow(trdnm, val, supplierDrCr, ctin, posName, idt, autoNarration, partyRegType);
 
                     let sideTotal = 0;
                     if (note.itms && Array.isArray(note.itms)) {
