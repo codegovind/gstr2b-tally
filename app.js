@@ -15,7 +15,7 @@ document.getElementById('convertBtn').addEventListener('click', () => {
             processData(data);
             showStatus("Excel generated successfully!", "success");
             
-            // NEW: Clear the file input field after successful download
+            // Clear the file input field after successful download
             fileInput.value = ''; 
             
         } catch (error) {
@@ -44,6 +44,20 @@ function formatTallyDate(dateStr) {
 }
 
 function processData(jsonData) {
+    // NEW: Dictionary to convert POS numbers into Tally State Names
+    const gstStates = {
+        "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+        "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan",
+        "09": "Uttar Pradesh", "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh",
+        "13": "Nagaland", "14": "Manipur", "15": "Mizoram", "16": "Tripura",
+        "17": "Meghalaya", "18": "Assam", "19": "West Bengal", "20": "Jharkhand",
+        "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+        "25": "Daman & Diu", "26": "Dadra & Nagar Haveli and Daman & Diu", "27": "Maharashtra",
+        "28": "Andhra Pradesh", "29": "Karnataka", "30": "Goa", "31": "Lakshadweep",
+        "32": "Kerala", "33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman & Nicobar Islands",
+        "36": "Telangana", "37": "Andhra Pradesh", "38": "Ladakh"
+    };
+
     const headers = [
         "Voucher Date", "Voucher Type Name", "Voucher Number", "GSTIN/UIN", "Place of Supply",
         "Supplier Invoice Date", "Narration", 
@@ -62,17 +76,14 @@ function processData(jsonData) {
         const igst = taxObject.igst || 0;
         const cess = taxObject.cess || 0;
 
-        // 1. DYNAMIC RATE CALCULATION
         let rate = taxObject.rt || 0;
         if (!rate && txval > 0) {
             rate = Math.round(((cgst + sgst + igst) / txval) * 100);
         }
         
-        // Snap to nearest standard GST rate bracket to prevent rounding errors
         const standardRates = [0, 5, 12, 18, 28];
         rate = standardRates.reduce((prev, curr) => Math.abs(curr - rate) < Math.abs(prev - rate) ? curr : prev);
 
-        // 2. MAP TO YOUR SPECIFIC LEDGERS
         let purLedger = `PURCHASE ${rate}%`;
         let cgstLedger = `INPUT CGST ${rate/2}%`; 
         let sgstLedger = `INPUT SGST ${rate/2}%`;
@@ -127,7 +138,10 @@ function processData(jsonData) {
                     const inum = inv.inum || "";
                     const idt = formatTallyDate(inv.dt || inv.idt || "");
                     const val = inv.val || 0;
-                    const pos = inv.pos || "";
+                    
+                    // UPDATED: Swap "27" for "Maharashtra"
+                    const rawPos = inv.pos || "";
+                    const posName = gstStates[rawPos] || rawPos;
                     
                     const rcm = inv.rev === "Y" ? "Yes" : "No";
                     const itc = inv.itcavl === "Y" ? "Eligible" : "Ineligible";
@@ -143,7 +157,7 @@ function processData(jsonData) {
                         ]);
                     };
 
-                    addRow(trdnm, val, "Cr", ctin, pos, idt, autoNarration);
+                    addRow(trdnm, val, "Cr", ctin, posName, idt, autoNarration);
 
                     let sideTotal = 0;
                     if (inv.itms && Array.isArray(inv.itms)) {
@@ -174,7 +188,10 @@ function processData(jsonData) {
                     const ntnum = note.ntnum || "";
                     const idt = formatTallyDate(note.dt || note.idt || "");
                     const val = note.val || 0;
-                    const pos = note.pos || "";
+                    
+                    // UPDATED: Swap "27" for "Maharashtra"
+                    const rawPos = note.pos || "";
+                    const posName = gstStates[rawPos] || rawPos;
 
                     const typ = note.typ || "";
                     const isCreditNote = typ === "C";
@@ -196,7 +213,7 @@ function processData(jsonData) {
                         ]);
                     };
 
-                    addRow(trdnm, val, supplierDrCr, ctin, pos, idt, autoNarration);
+                    addRow(trdnm, val, supplierDrCr, ctin, posName, idt, autoNarration);
 
                     let sideTotal = 0;
                     if (note.itms && Array.isArray(note.itms)) {
