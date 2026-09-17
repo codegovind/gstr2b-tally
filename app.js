@@ -91,7 +91,7 @@ function processData(jsonData) {
 
         if (rate === 18) {
             purLedger = "PURCHASE 18%";
-            cgstLedger = "INPUT CSGT 9 %"; 
+            cgstLedger = "INPUT CGST 9 %"; 
             sgstLedger = "INPUT SGST 9 %";
         } else if (rate === 28) {
             purLedger = "PURCHASE 28 %";
